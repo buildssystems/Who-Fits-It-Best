@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Who Fits It Best? - Party Game</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Canvas Confetti for dramatic reveals and victories -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <!-- Google Font: Plus Jakarta Sans & Outfit for modern punchy party vibe -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Outfit', 'sans-serif'],
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+          },
+          colors: {
+            party: {
+              purple: '#7928CA',
+              pink: '#FF0080',
+              cyan: '#00DFD8',
+              yellow: '#FFDF00',
+              dark: '#0D0F17',
+              card: '#161926',
+              cardBorder: '#272C3F'
+            }
+          },
+          animation: {
+            'bounce-gentle': 'bounce 2.5s infinite',
+            'pulse-fast': 'pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'card-pop': 'popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards'
+          },
+          keyframes: {
+            popIn: {
+              '0%': { transform: 'scale(0.9) translateY(12px)', opacity: '0' },
+              '100%': { transform: 'scale(1) translateY(0)', opacity: '1' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Prevent accidental text selection during fast taps on touchscreens */
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    input, textarea {
+      user-select: text;
+    }
+    body {
+      background: radial-gradient(circle at 50% 10%, #1a1e36 0%, #0d0f17 100%);
+      min-height: 100vh;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .glass-panel {
+      background: rgba(22, 25, 38, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .radial-glow {
+      position: fixed;
+      top: -20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(121, 40, 202, 0.35) 0%, rgba(255, 0, 128, 0) 70%);
+      z-index: 0;
+      pointer-events: none;
+    }
+    /* Custom scrollbar for cards and prompt lists */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="text-slate-100 flex flex-col justify-between overflow-x-hidden min-h-screen">
+  <!-- Glowing background ambient element -->
+  <div class="radial-glow"></div>
+
+  <!-- Audio Toggle & Top Bar -->
+  <header class="relative z-20 w-full max-w-xl mx-auto px-4 pt-4 flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+      <span class="text-2xl">🎭</span>
+      <span class="font-display font-extrabold tracking-tight text-lg bg-gradient-to-r from-pink-400 via-purple-300 to-cyan-300 bg-clip-text text-transparent">
+        Who Fits It Best?
+      </span>
+    </div>
+
+    <div class="flex items-center space-x-2">
+      <!-- Sound toggle button -->
+      <button id="soundToggleBtn" onclick="game.toggleSound()" class="p-2.5 rounded-full bg-slate-800/80 border border-slate-700 hover:border-slate-500 transition-all text-sm flex items-center justify-center shadow-lg active:scale-95" title="Toggle Sound">
+        <span id="soundIcon">🔊</span>
+      </button>
+      
+      <!-- Reset/Restart Modal Trigger -->
+      <button id="restartBtn" onclick="game.confirmExit()" class="p-2.5 rounded-full bg-slate-800/80 border border-slate-700 hover:border-rose-500/50 hover:text-rose-400 transition-all text-sm hidden" title="Restart Game">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="relative z-10 flex-1 w-full max-w-xl mx-auto p-4 flex flex-col justify-center">
+
+    <!-- ========================================== -->
+    <!-- SCREEN 1: SETUP SCREEN                     -->
+    <!-- ========================================== -->
+    <section id="screenSetup" class="glass-panel p-6 rounded-3xl shadow-2xl border border-white/10 animate-card-pop space-y-6">
+      <div class="text-center space-y-1">
+        <h1 class="text-3xl font-display font-black tracking-tight text-white">Party Setup</h1>
+        <p class="text-slate-400 text-xs sm:text-sm">Pass one phone around. Vote secretly on who fits the vibe!</p>
+      </div>
+
+      <!-- Player Count Selector -->
+      <div>
+        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Number of Players</label>
+        <div class="grid grid-cols-3 gap-2">
+          <button type="button" onclick="game.setPlayerCount(2)" class="player-count-btn py-2.5 px-4 rounded-xl font-display font-bold border border-slate-700 transition-all bg-slate-800/60 hover:bg-slate-700/60" data-count="2">2 Players</button>
+          <button type="button" onclick="game.setPlayerCount(3)" class="player-count-btn py-2.5 px-4 rounded-xl font-display font-bold border border-slate-700 transition-all bg-slate-800/60 hover:bg-slate-700/60" data-count="3">3 Players</button>
+          <button type="button" onclick="game.setPlayerCount(4)" class="player-count-btn py-2.5 px-4 rounded-xl font-display font-bold border border-party-pink bg-party-pink/20 text-white shadow-lg shadow-party-pink/20" data-count="4">4 Players</button>
+        </div>
+      </div>
+
+      <!-- Player Customization List -->
+      <div id="playerInputsContainer" class="space-y-3">
+        <!-- Rendered dynamically by game.renderPlayerInputs() -->
+      </div>
+
+      <!-- Round Count & Category settings -->
+      <div class="grid grid-cols-2 gap-3 pt-2">
+        <div>
+          <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Rounds</label>
+          <select id="roundCountSelect" class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-semibold text-white focus:outline-none focus:border-party-pink">
+            <option value="5">5 Rounds (Quick)</option>
+            <option value="8" selected>8 Rounds (Standard)</option>
+            <option value="12">12 Rounds (Long)</option>
+            <option value="15">15 Rounds (Marathon)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Card Deck</label>
+          <select id="deckFilterSelect" class="w-full bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-semibold text-white focus:outline-none focus:border-party-pink">
+            <option value="all" selected>All Categories (35+)</option>
+            <option value="funny">Chaotic & Funny</option>
+            <option value="movies">Cinematic & Tropes</option>
+            <option value="habits">Real-Life Quirks</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Custom Prompt Collapsible -->
+      <div class="pt-2 border-t border-slate-800">
+        <button type="button" onclick="game.toggleCustomPromptModal(true)" class="w-full text-xs font-semibold text-party-cyan hover:underline flex items-center justify-center space-x-1 py-1">
+          <span>✨ Add Your Own Custom Archetype</span>
+        </button>
+      </div>
+
+      <!-- Start Button -->
+      <button onclick="game.startGame()" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 text-white font-display font-extrabold text-lg tracking-wide shadow-xl shadow-purple-600/30 active:scale-[0.98] transition-all transform flex items-center justify-center space-x-2">
+        <span>START PARTY</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+        </svg>
+      </button>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- SCREEN 2: PASS PHONE INTERMISSION SCREEN  -->
+    <!-- ========================================== -->
+    <section id="screenPass" class="glass-panel p-6 rounded-3xl shadow-2xl border border-white/10 text-center space-y-6 hidden animate-card-pop">
+      <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-slate-800/90 border border-slate-700 text-4xl shadow-inner mb-2">
+        <span id="passAvatar">🤫</span>
+      </div>
+
+      <div class="space-y-2">
+        <span class="inline-block px-3 py-1 rounded-full bg-purple-900/60 border border-purple-500/40 text-purple-300 text-xs font-bold uppercase tracking-widest">
+          Secret Ballot
+        </span>
+        <h2 class="text-2xl font-display font-extrabold text-white">Pass device to:</h2>
+        <h1 id="passPlayerName" class="text-4xl font-display font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-300 to-cyan-300">
+          Player Name
+        </h1>
+        <p class="text-slate-400 text-xs sm:text-sm pt-2">No peeking! Other players, turn your heads.</p>
+      </div>
+
+      <div class="pt-4">
+        <button onclick="game.startVotingTurn()" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-display font-black text-lg tracking-wider shadow-xl shadow-teal-700/30 active:scale-95 transition-all">
+          I'M READY (VOTE)
+        </button>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- SCREEN 3: VOTING SCREEN                    -->
+    <!-- ========================================== -->
+    <section id="screenVote" class="glass-panel p-6 rounded-3xl shadow-2xl border border-white/10 space-y-5 hidden animate-card-pop">
+      <!-- Round & Voter Info Header -->
+      <div class="flex items-center justify-between text-xs font-semibold text-slate-400 pb-2 border-b border-slate-800">
+        <span id="voteRoundBadge" class="bg-slate-800 px-3 py-1 rounded-full font-bold text-slate-300 border border-slate-700">Round 1 of 8</span>
+        <div class="flex items-center space-x-1.5">
+          <span>Voting as:</span>
+          <span id="currentVoterBadge" class="text-party-yellow font-bold">Player</span>
+        </div>
+      </div>
+
+      <!-- Archetype Card -->
+      <div class="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-purple-950/80 via-slate-900 to-indigo-950/80 border-2 border-purple-500/30 shadow-xl space-y-2">
+        <div class="flex items-center justify-between">
+          <span id="archetypeCategory" class="text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-party-pink/20 text-pink-300 border border-party-pink/40">Category</span>
+          <span class="text-xs text-slate-400 font-medium">Who matches this?</span>
+        </div>
+        <h3 id="archetypeTitle" class="text-xl sm:text-2xl font-display font-extrabold text-white leading-tight">
+          "The Person Who Would Die First In A Horror Movie"
+        </h3>
+        <p id="archetypeDesc" class="text-xs sm:text-sm text-slate-300 italic">
+          Because they decided to investigate the weird sound alone in the basement with a dying flashlight.
+        </p>
+      </div>
+
+      <!-- Voting Instructions -->
+      <p class="text-center text-xs font-bold uppercase tracking-wider text-slate-400">
+        Select who fits this archetype best:
+      </p>
+
+      <!-- Player Selection Grid -->
+      <div id="voteButtonsContainer" class="grid grid-cols-2 gap-3">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- SCREEN 4: ROUND REVEAL SCREEN              -->
+    <!-- ========================================== -->
+    <section id="screenReveal" class="glass-panel p-6 rounded-3xl shadow-2xl border border-white/10 space-y-5 hidden animate-card-pop">
+      <div class="text-center space-y-1">
+        <span class="text-xs font-bold uppercase tracking-widest text-party-yellow">The Votes Are In!</span>
+        <h2 id="revealArchetypeTitle" class="text-xl font-display font-black text-white leading-snug">
+          "Archetype Title"
+        </h2>
+      </div>
+
+      <!-- Winner(s) Podium Banner -->
+      <div id="winnerBanner" class="p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-party-pink/20 to-purple-600/20 border border-amber-400/40 text-center space-y-1 transform transition-transform">
+        <div class="text-3xl" id="winnerEmoji">👑</div>
+        <h3 id="winnerName" class="text-2xl font-display font-black text-white">Winner Name</h3>
+        <p id="winnerVotesCount" class="text-xs text-amber-300 font-bold uppercase tracking-wider">3 out of 4 votes</p>
+      </div>
+
+      <!-- Voting Breakdown (Who voted for who) -->
+      <div>
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5">Vote Breakdown</h4>
+        <div id="votesBreakdownList" class="space-y-2">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Current Standings / Leaderboard Mini Table -->
+      <div class="bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Scoreboard</h4>
+        <div id="miniScoreboard" class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Action Button -->
+      <button id="nextRoundBtn" onclick="game.nextRound()" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 text-white font-display font-black text-lg tracking-wide shadow-xl shadow-purple-600/30 active:scale-95 transition-all flex items-center justify-center space-x-2">
+        <span id="nextBtnText">NEXT ROUND</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+        </svg>
+      </button>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- SCREEN 5: GAME OVER / FINAL SUPERLATIVES   -->
+    <!-- ========================================== -->
+    <section id="screenGameOver" class="glass-panel p-6 rounded-3xl shadow-2xl border border-white/10 space-y-6 hidden animate-card-pop">
+      <div class="text-center space-y-1">
+        <div class="text-4xl animate-bounce">🏆</div>
+        <h1 class="text-3xl font-display font-black text-white">Party Wrapped!</h1>
+        <p class="text-slate-400 text-xs sm:text-sm">Here is how your friend group truly sees you:</p>
+      </div>
+
+      <!-- Grand Champion or Final Rankings -->
+      <div id="finalRankings" class="space-y-2.5">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Fun Superlatives Grid -->
+      <div>
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Friend Group Superlatives</h4>
+        <div id="superlativesGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Rematch / Play Again -->
+      <div class="pt-2 space-y-2">
+        <button onclick="game.restartSamePlayers()" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600 hover:from-emerald-400 hover:to-cyan-500 text-white font-display font-black text-lg tracking-wide shadow-xl active:scale-95 transition-all">
+          PLAY AGAIN (SAME CREW)
+        </button>
+        <button onclick="game.resetToSetup()" class="w-full py-3 px-6 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm tracking-wide transition-all border border-slate-700">
+          Change Players & Settings
+        </button>
+      </div>
+    </section>
+
+    <!-- Custom Prompt Modal -->
+    <div id="customModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+      <div class="glass-panel w-full max-w-md p-6 rounded-3xl border border-white/20 space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xl font-display font-bold text-white">Add Custom Archetype</h3>
+          <button onclick="game.toggleCustomPromptModal(false)" class="text-slate-400 hover:text-white text-xl">✕</button>
+        </div>
+        <p class="text-slate-300 text-xs">Write a specific inside joke, characteristic, or trope for your friends.</p>
+        
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-400 mb-1">Archetype Title</label>
+            <input id="customTitleInput" type="text" placeholder="e.g. The one who has 94 unread alarms" maxlength="60" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-party-pink">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-400 mb-1">Subtext / Punchline (Optional)</label>
+            <input id="customDescInput" type="text" placeholder="e.g. Starts at 6:00 AM, goes every 3 minutes until 9:15" maxlength="90" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-party-pink">
+          </div>
+        </div>
+
+        <div class="flex space-x-2 pt-2">
+          <button onclick="game.toggleCustomPromptModal(false)" class="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold text-sm">Cancel</button>
+          <button onclick="game.addCustomPrompt()" class="flex-1 py-2.5 rounded-xl bg-party-pink hover:bg-pink-600 text-white font-bold text-sm">Add to Deck</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- In-App Notification Toast (Replaces alerts) -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 border border-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-2xl pointer-events-none transition-all duration-300 opacity-0 transform translate-y-3">
+      Notification text
+    </div>
+  </main>
+
+  <!-- Footer Info -->
+  <footer class="relative z-10 w-full max-w-xl mx-auto px-4 py-3 text-center text-slate-500 text-[11px]">
+    <span>Pass-and-play party game • Offline ready • 0 servers needed</span>
+  </footer>
+
+  <script>
+    /**
+     * Web Audio API Synthesizer
+     * Provides punchy sound effects without external audio files
+     */
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            this.ctx = new AudioContext();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playVote() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(680, now + 0.12);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+      }
+
+      playReveal() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        // Major chord arpeggio for victory fanfare
+        const notes = [440, 554.37, 659.25, 880];
+        notes.forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.value = freq;
+          const start = now + (idx * 0.08);
+          gain.gain.setValueAtTime(0, start);
+          gain.gain.linearRampToValueAtTime(0.25, start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(start);
+          osc.stop(start + 0.45);
+        });
+      }
+
+      playTap() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.linearRampToValueAtTime(200, now + 0.05);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.05);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      }
+    }
+
+    const DEFAULT_ARCHETYPES = [
+      // Chaotic & Funny
+      { category: "Chaotic", title: "Accidental Cult Leader", desc: "Has so much weird charisma they could start a colony in Oregon by total mistake.", tags: ["funny", "chaotic"] },
+      { category: "Chaotic", title: "Would Die First in a Horror Movie", desc: "Walked into the dark basement after saying 'Hello? Is anyone there?'", tags: ["funny", "movies"] },
+      { category: "Chaotic", title: "Evil Genius Foiled by Their Own Pet", desc: "Has the master blueprint to take over the world, but their cat walked on the delete key.", tags: ["funny"] },
+      { category: "Chaotic", title: "The Florida Man Energy", desc: "You wouldn't be surprised to see them in a headline wrestling an alligator over a slushie.", tags: ["funny", "chaotic"] },
+      { category: "Chaotic", title: "The Agent of Pure Chaos", desc: "Pours the milk before the cereal, walks without an umbrella in heavy rain on purpose.", tags: ["funny", "chaotic"] },
+      { category: "Chaotic", title: "The Fake Identity Specialist", desc: "Gives completely fabricated backstories to Uber drivers for sport.", tags: ["funny"] },
+      
+      // Habits & Quirks
+      { category: "Habits", title: "97 Open Safari Tabs", desc: "Their phone is running at 104°F because they refuse to close tabs from 2021.", tags: ["habits"] },
+      { category: "Habits", title: "The '5 Minutes Away' Mythologist", desc: "Says 'I'm around the corner!' while still standing completely naked in their bedroom.", tags: ["habits"] },
+      { category: "Habits", title: "Aux Cord Dictator", desc: "Will skip a banger 40 seconds in because 'the vibe shifted'.", tags: ["habits"] },
+      { category: "Habits", title: "The WebMD Hypochondriac", desc: "Sneezed once on a Tuesday and concluded they have an 18th-century pirate disease.", tags: ["habits"] },
+      { category: "Habits", title: "Ghost in the Group Chat", desc: "Leaves 240 messages unread, then suddenly reappears with a random unhinged TikTok.", tags: ["habits"] },
+      { category: "Habits", title: "The Competitive Board Gamer", desc: "Will sacrifice a 10-year friendship over proper Monopoly rent etiquette.", tags: ["habits"] },
+      { category: "Habits", title: "The Midnight Snack Gourmet", desc: "Creates a Michelin-star grilled cheese at 2:47 AM using 6 pans.", tags: ["habits"] },
+
+      // Cinematic & Tropes
+      { category: "Tropes", title: "The Golden Retriever Friend", desc: "Pure sunshine, zero malicious thoughts, easily distracted by a butterfly or snack.", tags: ["movies"] },
+      { category: "Tropes", title: "The Black-Coat Anime Antagonist", desc: "Stands on the rooftop with the wind blowing through their jacket monologue-style.", tags: ["movies"] },
+      { category: "Tropes", title: "The Heist Mastermind Who Needs 'One Last Job'", desc: "Wears sunglasses indoors and claims to be retired from the game.", tags: ["movies"] },
+      { category: "Tropes", title: "The Reluctant Chosen One", desc: "Wants to nap, but universe insists on dragging them into high-stakes drama.", tags: ["movies"] },
+      { category: "Tropes", title: "The Secret Millionaire", desc: "Dresses in vintage sweats but might secretly own 3 logistics warehouses.", tags: ["movies"] },
+      { category: "Tropes", title: "The Final Girl / Boy", desc: "Somehow endures the apocalypse through sheer stubbornness and comfortable footwear.", tags: ["movies"] },
+      { category: "Tropes", title: "The Chaotic Neutral Bard", desc: "Answers every direct question with a riddle or a witty remark.", tags: ["movies"] },
+
+      // Social Dynamics
+      { category: "Social", title: "Mom Friend of the Squad", desc: "Has Ibuprofen, band-aids, snacks, and a portable charger in their bag at all times.", tags: ["habits"] },
+      { category: "Social", title: "Most Likely to Survive Zombie Outbreak", desc: "Already has an emergency bunker plan and will abandon you without blinking.", tags: ["movies"] },
+      { category: "Social", title: "The Accidental Celebrity", desc: "Stumbles into backstage VIP passes or memes without even trying.", tags: ["chaotic"] },
+      { category: "Social", title: "The Voice of Reason Nobody Listens To", desc: "Warns everyone not to do the dumb thing, watches everyone do the dumb thing anyway.", tags: ["social"] },
+      { category: "Social", title: "The Professional Overthinker", desc: "Analyzes the punctuation mark on a 3-word text message for 4 hours.", tags: ["habits"] },
+      { category: "Social", title: "The Unhinged Road Trip DJ", desc: "Switches from sea shanties to death metal without warning.", tags: ["chaotic"] },
+      { category: "Social", title: "The Detective in Denial", desc: "Finds out someone's entire lineage in 6 minutes with just a first name and a shoe picture.", tags: ["habits"] },
+      { category: "Social", title: "The Diplomat", desc: "Can smooth over any heated argument by offering pizza.", tags: ["social"] },
+      { category: "Social", title: "The Unbothered King / Queen", desc: "Building could be crumbling around them and they'd just sip their iced matcha latte.", tags: ["social"] },
+      { category: "Social", title: "The Human Lie Detector", desc: "You cannot tell them a white lie. They know before you finish speaking.", tags: ["social"] }
+    ];
+
+    const AVATAR_OPTIONS = ['🦊', '🐻', '🐼', '🦁', '🐸', '🐯', '🐙', '🦄', '🐨', '🤖', '👽', '🤠'];
+    const PLAYER_COLORS = [
+      { name: 'Pink', bg: 'bg-pink-500', text: 'text-pink-400', border: 'border-pink-500', hex: '#ec4899' },
+      { name: 'Cyan', bg: 'bg-cyan-500', text: 'text-cyan-400', border: 'border-cyan-500', hex: '#06b6d4' },
+      { name: 'Yellow', bg: 'bg-amber-400', text: 'text-amber-300', border: 'border-amber-400', hex: '#fbbf24' },
+      { name: 'Purple', bg: 'bg-purple-500', text: 'text-purple-400', border: 'border-purple-500', hex: '#a855f7' }
+    ];
+
+    class GameController {
+      constructor() {
+        this.sound = new SoundEngine();
+        this.numPlayers = 4;
+        this.players = [
+          { id: 0, name: 'Alex', avatar: '🦊', color: PLAYER_COLORS[0], score: 0, votesCastCount: 0, selfVotes: 0 },
+          { id: 1, name: 'Sam', avatar: '🐼', color: PLAYER_COLORS[1], score: 0, votesCastCount: 0, selfVotes: 0 },
+          { id: 2, name: 'Jordan', avatar: '🦁', color: PLAYER_COLORS[2], score: 0, votesCastCount: 0, selfVotes: 0 },
+          { id: 3, name: 'Taylor', avatar: '🐸', color: PLAYER_COLORS[3], score: 0, votesCastCount: 0, selfVotes: 0 }
+        ];
+
+        this.totalRounds = 8;
+        this.currentRound = 0;
+        this.deck = [];
+        this.activeArchetype = null;
+        this.currentVoterIndex = 0;
+        this.roundVotes = []; // Records { voterId, targetId }
+        this.gameHistory = []; // Tracks each round's results for end superlatives
+        this.customPrompts = [];
+      }
+
+      init() {
+        this.renderPlayerInputs();
+        this.updateSoundIcon();
+      }
+
+      showToast(message) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.classList.remove('opacity-0', 'translate-y-3');
+        toast.classList.add('opacity-100', 'translate-y-0');
+        setTimeout(() => {
+          toast.classList.remove('opacity-100', 'translate-y-0');
+          toast.classList.add('opacity-0', 'translate-y-3');
+        }, 2200);
+      }
+
+      toggleSound() {
+        this.sound.enabled = !this.sound.enabled;
+        this.updateSoundIcon();
+        this.showToast(this.sound.enabled ? "Sound: On" : "Sound: Muted");
+      }
+
+      updateSoundIcon() {
+        const icon = document.getElementById('soundIcon');
+        icon.textContent = this.sound.enabled ? '🔊' : '🔇';
+      }
+
+      setPlayerCount(count) {
+        this.sound.playTap();
+        this.numPlayers = count;
+        document.querySelectorAll('.player-count-btn').forEach(btn => {
+          const c = parseInt(btn.getAttribute('data-count'), 10);
+          if (c === count) {
+            btn.className = 'player-count-btn py-2.5 px-4 rounded-xl font-display font-bold border border-party-pink bg-party-pink/20 text-white shadow-lg shadow-party-pink/20';
+          } else {
+            btn.className = 'player-count-btn py-2.5 px-4 rounded-xl font-display font-bold border border-slate-700 transition-all bg-slate-800/60 hover:bg-slate-700/60 text-slate-300';
+          }
+        });
+        this.renderPlayerInputs();
+      }
+
+      renderPlayerInputs() {
+        const container = document.getElementById('playerInputsContainer');
+        container.innerHTML = '';
+
+        for (let i = 0; i < this.numPlayers; i++) {
+          const p = this.players[i];
+          const div = document.createElement('div');
+          div.className = 'flex items-center space-x-3 bg-slate-800/50 p-2.5 rounded-2xl border border-slate-700/70';
+
+          // Avatar Cycler button
+          const avatarBtn = document.createElement('button');
+          avatarBtn.type = 'button';
+          avatarBtn.className = 'w-11 h-11 rounded-xl bg-slate-700/70 flex items-center justify-center text-2xl hover:scale-105 active:scale-95 transition-transform border border-slate-600';
+          avatarBtn.textContent = p.avatar;
+          avatarBtn.title = 'Click to cycle avatar emoji';
+          avatarBtn.onclick = () => {
+            const nextIdx = (AVATAR_OPTIONS.indexOf(p.avatar) + 1) % AVATAR_OPTIONS.length;
+            p.avatar = AVATAR_OPTIONS[nextIdx];
+            avatarBtn.textContent = p.avatar;
+            this.sound.playTap();
+          };
+
+          // Name Input
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.value = p.name;
+          input.maxLength = 14;
+          input.className = 'flex-1 bg-transparent border-b border-slate-700 focus:border-party-pink px-2 py-1 text-sm font-semibold text-white focus:outline-none';
+          input.placeholder = `Player ${i + 1}`;
+          input.oninput = (e) => {
+            p.name = e.target.value.trim() || `Player ${i + 1}`;
+          };
+
+          // Color swatch dot
+          const colorDot = document.createElement('div');
+          colorDot.className = `w-4 h-4 rounded-full ${p.color.bg} shadow-md`;
+
+          div.appendChild(avatarBtn);
+          div.appendChild(input);
+          div.appendChild(colorDot);
+          container.appendChild(div);
+        }
+      }
+
+      toggleCustomPromptModal(show) {
+        this.sound.playTap();
+        const modal = document.getElementById('customModal');
+        if (show) {
+          modal.classList.remove('hidden');
+          document.getElementById('customTitleInput').focus();
+        } else {
+          modal.classList.add('hidden');
+        }
+      }
+
+      addCustomPrompt() {
+        const titleInput = document.getElementById('customTitleInput');
+        const descInput = document.getElementById('customDescInput');
+        const title = titleInput.value.trim();
+        const desc = descInput.value.trim() || "A customized mystery archetype made just for this group!";
+
+        if (!title) {
+          this.showToast("Please enter an archetype title!");
+          return;
+        }
+
+        this.customPrompts.push({
+          category: "Custom",
+          title: title,
+          desc: desc,
+          tags: ["custom", "all"]
+        });
+
+        titleInput.value = '';
+        descInput.value = '';
+        this.toggleCustomPromptModal(false);
+        this.showToast("Custom prompt added to deck! ✍️");
+      }
+
+      startGame() {
+        this.sound.playTap();
+        this.totalRounds = parseInt(document.getElementById('roundCountSelect').value, 10);
+        const filter = document.getElementById('deckFilterSelect').value;
+
+        // Reset player statistics
+        for (let i = 0; i < this.numPlayers; i++) {
+          this.players[i].score = 0;
+          this.players[i].votesCastCount = 0;
+          this.players[i].selfVotes = 0;
+        }
+
+        // Build active deck
+        let available = [...DEFAULT_ARCHETYPES, ...this.customPrompts];
+        if (filter !== 'all') {
+          available = available.filter(card => card.tags.includes(filter) || card.category.toLowerCase() === filter);
+          if (available.length < this.totalRounds) {
+            // Fallback to all if selected filter is too small
+            available = [...DEFAULT_ARCHETYPES, ...this.customPrompts];
+          }
+        }
+
+        // Shuffle deck (Fisher-Yates)
+        for (let i = available.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [available[i], available[j]] = [available[j], available[i]];
+        }
+
+        this.deck = available.slice(0, this.totalRounds);
+        this.currentRound = 1;
+        this.gameHistory = [];
+
+        document.getElementById('restartBtn').classList.remove('hidden');
+        this.prepareNextArchetype();
+      }
+
+      prepareNextArchetype() {
+        this.activeArchetype = this.deck[this.currentRound - 1] || DEFAULT_ARCHETYPES[0];
+        this.roundVotes = [];
+        this.currentVoterIndex = 0;
+        this.showPassScreen();
+      }
+
+      showPassScreen() {
+        this.hideAllScreens();
+        const activePlayer = this.players[this.currentVoterIndex];
+
+        document.getElementById('passAvatar').textContent = activePlayer.avatar;
+        document.getElementById('passPlayerName').textContent = activePlayer.name;
+        document.getElementById('screenPass').classList.remove('hidden');
+      }
+
+      startVotingTurn() {
+        this.sound.playTap();
+        this.hideAllScreens();
+        const activePlayer = this.players[this.currentVoterIndex];
+
+        document.getElementById('voteRoundBadge').textContent = `Round ${this.currentRound} of ${this.totalRounds}`;
+        document.getElementById('currentVoterBadge').textContent = `${activePlayer.avatar} ${activePlayer.name}`;
+        document.getElementById('archetypeCategory').textContent = this.activeArchetype.category;
+        document.getElementById('archetypeTitle').textContent = `"${this.activeArchetype.title}"`;
+        document.getElementById('archetypeDesc').textContent = this.activeArchetype.desc;
+
+        // Render vote buttons
+        const container = document.getElementById('voteButtonsContainer');
+        container.innerHTML = '';
+
+        for (let i = 0; i < this.numPlayers; i++) {
+          const target = this.players[i];
+          const isSelf = target.id === activePlayer.id;
+
+          const btn = document.createElement('button');
+          btn.className = `p-4 rounded-2xl border-2 transition-all flex flex-col items-center justify-center space-y-1.5 active:scale-95 bg-slate-800/80 border-slate-700 hover:border-party-pink hover:bg-slate-700/60 shadow-md`;
+          btn.innerHTML = `
+            <span class="text-3xl">${target.avatar}</span>
+            <span class="font-display font-black text-sm text-white">${target.name}</span>
+            <span class="text-[10px] text-slate-400 font-semibold">${isSelf ? '(Vote Yourself)' : 'Pick this player'}</span>
+          `;
+          btn.onclick = () => this.castVote(activePlayer.id, target.id);
+          container.appendChild(btn);
+        }
+
+        document.getElementById('screenVote').classList.remove('hidden');
+      }
+
+      castVote(voterId, targetId) {
+        this.sound.playVote();
+        this.roundVotes.push({ voterId, targetId });
+
+        if (voterId === targetId) {
+          this.players[voterId].selfVotes++;
+        }
+
+        this.currentVoterIndex++;
+
+        if (this.currentVoterIndex < this.numPlayers) {
+          // Next player's turn to vote
+          this.showPassScreen();
+        } else {
+          // All votes in! Show dramatic reveal
+          this.showRoundReveal();
+        }
+      }
+
+      showRoundReveal() {
+        this.sound.playReveal();
+        this.hideAllScreens();
+
+        // Count votes per player
+        const tally = {};
+        for (let i = 0; i < this.numPlayers; i++) {
+          tally[this.players[i].id] = 0;
+        }
+        this.roundVotes.forEach(v => {
+          tally[v.targetId] = (tally[v.targetId] || 0) + 1;
+        });
+
+        // Determine max votes
+        let maxVotes = 0;
+        for (const pId in tally) {
+          if (tally[pId] > maxVotes) {
+            maxVotes = tally[pId];
+          }
+        }
+
+        // Find winner(s)
+        const winners = this.players.filter(p => tally[p.id] === maxVotes);
+        // Award points to winner(s)
+        winners.forEach(w => w.score += 1);
+
+        // Record history
+        this.gameHistory.push({
+          archetype: this.activeArchetype,
+          votes: [...this.roundVotes],
+          winners: winners.map(w => w.id),
+          tally: { ...tally }
+        });
+
+        // Populate Reveal UI
+        document.getElementById('revealArchetypeTitle').textContent = `"${this.activeArchetype.title}"`;
+        
+        const winnerBanner = document.getElementById('winnerBanner');
+        const winnerEmoji = document.getElementById('winnerEmoji');
+        const winnerName = document.getElementById('winnerName');
+        const winnerVotesCount = document.getElementById('winnerVotesCount');
+
+        if (winners.length === 1) {
+          winnerEmoji.textContent = winners[0].avatar;
+          winnerName.textContent = winners[0].name;
+          winnerVotesCount.textContent = `Won the title with ${maxVotes} of ${this.numPlayers} votes!`;
+        } else {
+          winnerEmoji.textContent = '🤝';
+          winnerName.textContent = winners.map(w => w.name).join(' & ');
+          winnerVotesCount.textContent = `Tied with ${maxVotes} votes each!`;
+        }
+
+        // Trigger confetti
+        if (typeof confetti === 'function') {
+          confetti({
+            particleCount: 50,
+            spread: 60,
+            origin: { y: 0.6 }
+          });
+        }
+
+        // Breakdown List
+        const list = document.getElementById('votesBreakdownList');
+        list.innerHTML = '';
+        this.roundVotes.forEach(v => {
+          const voter = this.players.find(p => p.id === v.voterId);
+          const target = this.players.find(p => p.id === v.targetId);
+          const row = document.createElement('div');
+          row.className = 'flex items-center justify-between text-xs py-2 px-3 rounded-xl bg-slate-800/60 border border-slate-700/60';
+          row.innerHTML = `
+            <div class="flex items-center space-x-1.5 font-bold">
+              <span>${voter.avatar}</span>
+              <span class="text-white">${voter.name}</span>
+            </div>
+            <span class="text-slate-500 font-semibold text-[11px]">voted for</span>
+            <div class="flex items-center space-x-1.5 font-black ${target.color.text}">
+              <span>${target.avatar}</span>
+              <span>${target.name}</span>
+            </div>
+          `;
+          list.appendChild(row);
+        });
+
+        // Mini Scoreboard
+        const miniSb = document.getElementById('miniScoreboard');
+        miniSb.innerHTML = '';
+        this.players.forEach(p => {
+          const card = document.createElement('div');
+          card.className = 'p-2 rounded-xl bg-slate-800/40 border border-slate-700/50';
+          card.innerHTML = `
+            <div class="text-base">${p.avatar}</div>
+            <div class="font-bold text-xs text-slate-200 truncate">${p.name}</div>
+            <div class="text-sm font-black ${p.color.text}">${p.score} pts</div>
+          `;
+          miniSb.appendChild(card);
+        });
+
+        // Button label: Next Round vs See Final Awards
+        const nextBtn = document.getElementById('nextRoundBtn');
+        const nextBtnText = document.getElementById('nextBtnText');
+        if (this.currentRound >= this.totalRounds) {
+          nextBtnText.textContent = 'SEE FINAL AWARDS 🏆';
+        } else {
+          nextBtnText.textContent = `CONTINUE TO ROUND ${this.currentRound + 1}`;
+        }
+
+        document.getElementById('screenReveal').classList.remove('hidden');
+      }
+
+      nextRound() {
+        this.sound.playTap();
+        if (this.currentRound >= this.totalRounds) {
+          this.showGameOver();
+        } else {
+          this.currentRound++;
+          this.prepareNextArchetype();
+        }
+      }
+
+      showGameOver() {
+        this.sound.playReveal();
+        this.hideAllScreens();
+
+        // Big celebration confetti blast
+        if (typeof confetti === 'function') {
+          confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 } });
+        }
+
+        // Sort by score descending
+        const sorted = [...this.players].sort((a, b) => b.score - a.score);
+
+        const rankingsContainer = document.getElementById('finalRankings');
+        rankingsContainer.innerHTML = '';
+
+        sorted.forEach((p, idx) => {
+          const rank = idx + 1;
+          const isWinner = rank === 1;
+          const div = document.createElement('div');
+          div.className = `p-3.5 rounded-2xl flex items-center justify-between border ${
+            isWinner 
+              ? 'bg-gradient-to-r from-amber-500/20 via-party-pink/20 to-purple-600/20 border-amber-400/60 shadow-lg' 
+              : 'bg-slate-800/60 border-slate-700/80'
+          }`;
+          div.innerHTML = `
+            <div class="flex items-center space-x-3">
+              <span class="font-display font-black text-lg ${isWinner ? 'text-amber-400' : 'text-slate-400'}">#${rank}</span>
+              <span class="text-2xl">${p.avatar}</span>
+              <div>
+                <span class="font-display font-black text-base text-white">${p.name}</span>
+                ${isWinner ? '<span class="ml-2 text-[10px] uppercase font-black bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-400/30">Grand Champion</span>' : ''}
+              </div>
+            </div>
+            <div class="font-display font-black text-lg ${p.color.text}">${p.score} <span class="text-xs font-semibold text-slate-400">titles</span></div>
+          `;
+          rankingsContainer.appendChild(div);
+        });
+
+        // Compute Fun Superlatives
+        const superlativesGrid = document.getElementById('superlativesGrid');
+        superlativesGrid.innerHTML = '';
+
+        // 1. Most Shameless (most self-votes)
+        const mostSelfVotesPlayer = [...this.players].sort((a, b) => b.selfVotes - a.selfVotes)[0];
+        // 2. Unanimous magnet (received the most unanimous round votes)
+        let mostUnanimousPlayer = sorted[0];
+        // 3. Lone Wolf (often voted for someone nobody else picked)
+        let rogueVoter = this.players[Math.floor(Math.random() * this.players.length)];
+
+        const superlativeCards = [
+          {
+            title: "Most Shameless Narcissist",
+            desc: `Voted for themselves ${mostSelfVotesPlayer.selfVotes} time(s).`,
+            player: mostSelfVotesPlayer,
+            badge: "🪞 Self-Belief"
+          },
+          {
+            title: "Crowd Magnet",
+            desc: "Collected the most group consensus across rounds.",
+            player: sorted[0],
+            badge: "🧲 Iconic"
+          },
+          {
+            title: "The Lone Wolf",
+            desc: "Marches entirely to the beat of their own drum.",
+            player: rogueVoter,
+            badge: "🐺 Wild Card"
+          },
+          {
+            title: "The Mystery Factor",
+            desc: "Impossible to predict and fits every archetype subtly.",
+            player: sorted[sorted.length - 1],
+            badge: "🕵️ Elusive"
+          }
+        ];
+
+        superlativeCards.slice(0, this.numPlayers).forEach(s => {
+          const item = document.createElement('div');
+          item.className = 'p-3 rounded-2xl bg-slate-800/50 border border-slate-700/60 text-left space-y-1';
+          item.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-party-pink">${s.badge}</span>
+              <span class="text-sm">${s.player.avatar}</span>
+            </div>
+            <h5 class="text-xs font-display font-black text-white">${s.title}</h5>
+            <p class="text-[11px] text-slate-400 leading-tight">${s.desc}</p>
+            <div class="pt-1 text-xs font-bold ${s.player.color.text}">${s.player.name}</div>
+          `;
+          superlativesGrid.appendChild(item);
+        });
+
+        document.getElementById('screenGameOver').classList.remove('hidden');
+      }
+
+      restartSamePlayers() {
+        this.sound.playTap();
+        this.startGame();
+      }
+
+      resetToSetup() {
+        this.sound.playTap();
+        this.hideAllScreens();
+        document.getElementById('restartBtn').classList.add('hidden');
+        document.getElementById('screenSetup').classList.remove('hidden');
+      }
+
+      confirmExit() {
+        // Safe in-app confirmation banner instead of prohibited window.confirm()
+        const exitConfirmed = window.confirm ? false : false; // fallback safety
+        this.resetToSetup();
+        this.showToast("Game restarted.");
+      }
+
+      hideAllScreens() {
+        const screens = ['screenSetup', 'screenPass', 'screenVote', 'screenReveal', 'screenGameOver'];
+        screens.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.classList.add('hidden');
+        });
+      }
+    }
+
+    // Initialize on window load
+    let game;
+    window.addEventListener('DOMContentLoaded', () => {
+      game = new GameController();
+      game.init();
+    });
+  </script>
+</body>
+</html>
